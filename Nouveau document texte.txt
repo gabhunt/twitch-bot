@@ -1,0 +1,70 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: ==========================
+:: Vérification de Python et pip
+:: ==========================
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ❌ Python n'est pas installé. Veuillez installer Python 3.x avant de continuer.
+    pause
+    exit /b 1
+)
+
+pip --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ❌ pip n'est pas installé. Essaye d'installer pip avant de continuer.
+    pause
+    exit /b 1
+)
+
+:: ==========================
+:: Détection de Google Chrome Version
+:: ==========================
+for /f "tokens=2 delims==" %%V in ('wmic datafile where "name='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'" get Version /value') do set CHROME_VERSION=%%V
+if "%CHROME_VERSION%"=="" (
+    echo ❌ Google Chrome n'est pas installé ou sa version n'a pas été trouvée.
+    pause
+    exit /b 1
+)
+
+echo ✅ Version de Chrome détectée : %CHROME_VERSION%
+
+:: Extraire la version principale de Chrome (ex: 121.0.6167.184 → 121)
+for /f "tokens=1 delims=." %%A in ("%CHROME_VERSION%") do set CHROME_MAJOR=%%A
+
+:: ==========================
+:: Récupération et installation de ChromeDriver
+:: ==========================
+set CHROMEDRIVER_API=https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json
+for /f %%v in ('powershell -command "(Invoke-WebRequest -Uri '%CHROMEDRIVER_API%' | ConvertFrom-Json).milestones.%CHROME_MAJOR%.downloads.chromedriver.windows[0].url"') do set CHROMEDRIVER_DOWNLOAD=%%v
+
+if "%CHROMEDRIVER_DOWNLOAD%"=="" (
+    echo ❌ Impossible de récupérer la bonne version de ChromeDriver.
+    pause
+    exit /b 1
+)
+
+echo 🔍 Téléchargement de ChromeDriver...
+curl -L -o chromedriver.zip "%CHROMEDRIVER_DOWNLOAD%" --silent --show-error
+powershell -command "& {Expand-Archive -Path 'chromedriver.zip' -DestinationPath 'temp_chromedriver' -Force}"
+move /Y "temp_chromedriver\chromedriver.exe" "chromedriver.exe" >nul
+rmdir /S /Q temp_chromedriver
+del chromedriver.zip
+echo ✅ ChromeDriver installé avec succès !
+
+:: ==========================
+:: Installation des dépendances Python
+:: ==========================
+echo 🔧 Installation des dépendances...
+pip install --upgrade pip
+pip install selenium tk requests webdriver-manager
+
+:: ==========================
+:: Lancement du script bot Twitch
+:: ==========================
+echo 🚀 Démarrage du bot Twitch...
+python twitch_viewer_bot.py
+
+pause
+endlocal
